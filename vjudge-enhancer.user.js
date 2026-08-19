@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.5.2
+// @version      0.5.3
 // @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware)
 // @author       doing
 // @match        https://vjudge.net/*
@@ -718,21 +718,37 @@
     if (!root) {
       root = document.createElement('div');
       root.id = 'vje-root';
+      root.vjeManaged = true;
       (document.body || document.documentElement).appendChild(root);
-      document.querySelectorAll('#vje-root').forEach((r) => { if (r !== root) r.remove(); });
       buildSearchUI(root);
       buildActionButtons(root);
       buildFavManager(root);
       applyTheme(root);
     }
+    vjeDedupe();
     return root;
+  }
+
+  function vjeDedupe() {
+    const roots = document.querySelectorAll('#vje-root');
+    if (roots.length <= 1) return;
+    let primary = null;
+    roots.forEach((r) => {
+      const score = r.querySelectorAll('[id^="vje-"], .vje-act, .vje-open').length;
+      if (!primary || score > primary._vjeScore) { primary = r; primary._vjeScore = score; }
+    });
+    if (!primary) primary = roots[0];
+    roots.forEach((r) => { if (r !== primary) r.remove(); });
   }
 
   const themeObs = new MutationObserver(() => { const root = $('#vje-root'); if (root) applyTheme(root); });
   let _wdt = null;
   const watchdog = new MutationObserver(() => {
     clearTimeout(_wdt);
-    _wdt = setTimeout(() => { if (!document.getElementById('vje-root')) mountRoot(); }, 120);
+    _wdt = setTimeout(() => {
+      if (!document.getElementById('vje-root')) mountRoot();
+      else vjeDedupe();
+    }, 120);
   });
 
   // global (once) click delegate for favorites delete
@@ -767,6 +783,7 @@
       applyTheme(root);
       watchdog.observe(document.body || document.documentElement, { childList: true, subtree: false });
       themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+      setInterval(vjeDedupe, 1500);
 
       if (isProblemPage()) {
         buildStickyBar(root);
