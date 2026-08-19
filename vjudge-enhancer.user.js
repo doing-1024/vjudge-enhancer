@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.5.3
-// @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware)
+// @version      0.5.4
+// @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware, dedup fixes)
 // @author       doing
 // @match        https://vjudge.net/*
 // @match        https://www.vjudge.net/*
@@ -455,6 +455,7 @@
   }
 
   function buildActionButtons(root) {
+    if ($('#vje-submit-btn') || $('#vje-origin-btn') || $('#vje-fav-btn')) return;
     const rail = $('#vje-rail'); if (!rail) return;
 
     const oj = (location.pathname.match(/^\/problem\/([^-]+)-/) || [])[1];
@@ -462,14 +463,14 @@
 
     if (isProblemPage() && oj && prob) {
       const b1 = document.createElement('button');
-      b1.className = 'vje-act'; b1.title = '提交';
+      b1.className = 'vje-act'; b1.id = 'vje-submit-btn'; b1.title = '提交';
       b1.innerHTML = '<i class="fa fa-upload" aria-hidden="true"></i>';
       b1.onclick = () => { const s = document.getElementById('btn-submit'); if (s) s.click(); };
       rail.appendChild(b1);
 
       const url = buildOriginalUrl(oj, prob);
       const b2 = document.createElement('button');
-      b2.className = 'vje-act'; b2.title = url ? '跳转原题' : '无原题链接';
+      b2.className = 'vje-act'; b2.id = 'vje-origin-btn'; b2.title = url ? '跳转原题' : '无原题链接';
       b2.innerHTML = '<i class="fa fa-external-link" aria-hidden="true"></i>';
       if (!url) b2.disabled = true;
       b2.onclick = () => { if (url) window.open(url, '_blank'); else toast('暂不支持该OJ原题跳转'); };
@@ -495,6 +496,7 @@
   }
 
   function buildFavManager(root) {
+    if ($('#vje-fav')) return;
     const box = document.createElement('div');
     box.id = 'vje-fav';
     box.innerHTML = `
@@ -729,6 +731,13 @@
     return root;
   }
 
+  function straySweeper() {
+    const root = $('#vje-root'); if (!root) return;
+    document.querySelectorAll('[id^="vje-"], [class*="vje-"]').forEach((el) => {
+      if (el !== root && !root.contains(el)) el.remove();
+    });
+  }
+
   function vjeDedupe() {
     const roots = document.querySelectorAll('#vje-root');
     if (roots.length <= 1) return;
@@ -783,7 +792,7 @@
       applyTheme(root);
       watchdog.observe(document.body || document.documentElement, { childList: true, subtree: false });
       themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
-      setInterval(vjeDedupe, 1500);
+      setInterval(() => { vjeDedupe(); straySweeper(); }, 1500);
 
       if (isProblemPage()) {
         buildStickyBar(root);
