@@ -1,0 +1,6 @@
+# 开发/测试产物
+test/
+bundles/
+__pycache__/
+*.pyc
+*.log
