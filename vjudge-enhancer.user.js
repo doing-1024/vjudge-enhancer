@@ -11,8 +11,8 @@
 // @grant        GM_addStyle
 // @grant        GM_registerMenuCommand
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/main/vjudge-enhancer.user.js
-// @downloadURL  https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/main/vjudge-enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/master/vjudge-enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/master/vjudge-enhancer.user.js
 // @homepageURL  https://github.com/doing-1024/vjudge-enhancer
 // ==/UserScript==
 

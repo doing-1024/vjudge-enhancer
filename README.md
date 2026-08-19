@@ -42,7 +42,7 @@
 ## 📥 安装
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/)（Chrome/Edge/Firefox 等）
-2. 打开安装页：<https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/main/vjudge-enhancer.user.js>，Tampermonkey 会提示安装
+2. 打开安装页：<https://raw.githubusercontent.com/doing-1024/vjudge-enhancer/master/vjudge-enhancer.user.js>，Tampermonkey 会提示安装
 3. 或手动「新建脚本」→ 粘贴本仓库 `vjudge-enhancer.user.js` 内容 → 保存
 
 > ⚠️ 脚本在**你已登录 vjudge 的浏览器**内运行，搜索 / 提交 / 收藏等依赖你的登录态。
