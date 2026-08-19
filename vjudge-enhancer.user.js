@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.5.0
+// @version      0.5.1
 // @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware)
 // @author       doing
 // @match        https://vjudge.net/*
@@ -25,7 +25,7 @@
   const DEFAULTS = {
     prefLang: 'none',   // none | en | zh | ja | ko | ru  (statement version language)
     wideScreen: false,  // collapse the problem side-panel on problem pages
-    searchField: 'all', // all | title | probNum
+    searchField: 'all', // all | title | probNum | fav
     searchOJ: 'All',
   };
 
@@ -67,6 +67,21 @@
   let drawCounter = Math.floor(Math.random() * 100);
 
   async function vjudgeSearch(query, field) {
+    if (field === 'fav') {
+      const q = query.toLowerCase();
+      const f = getFavs ? getFavs() : {};
+      const list = (f.problem || []).filter((it) => (it.title || '').toLowerCase().includes(q));
+      return list.map((it) => {
+        const m = (it.key || '').match(/^([^-]+)-(.+)$/);
+        return {
+          originOJ: m ? m[1] : '',
+          originProb: m ? m[2] : '',
+          title: it.title || it.key,
+          source: '',
+          _favUrl: it.url,
+        };
+      });
+    }
     const fields = field === 'all' ? ['title', 'probNum'] : [field];
     const seen = new Set();
     const out = [];
@@ -287,6 +302,7 @@
         <button data-f="all" class="${CFG.searchField === 'all' ? 'active' : ''}">全部</button>
         <button data-f="title" class="${CFG.searchField === 'title' ? 'active' : ''}">题目</button>
         <button data-f="probNum" class="${CFG.searchField === 'probNum' ? 'active' : ''}">题号</button>
+        <button data-f="fav" class="${CFG.searchField === 'fav' ? 'active' : ''}">收藏夹内</button>
       </div>
       <div class="vje-results" id="vje-results"></div>`;
     root.appendChild(panel);
@@ -318,11 +334,13 @@
         const items = await vjudgeSearch(q, CFG.searchField);
         if (!items.length) { results.innerHTML = '<div class="vje-empty">无结果</div>'; return; }
         results.innerHTML = items.map((it) => {
-          const url = `/problem/${it.originOJ}-${it.originProb}`;
+          const url = it._favUrl || `/problem/${it.originOJ}-${it.originProb}`;
           const src = (it.source || '').replace(/<[^>]+>/g, '');
+          const oj = it._favUrl ? it.originOJ : it.originOJ;
+          const title = it.title || it.originProb || '';
           return `<a class="vje-item" href="${url}">
-            <span class="vje-oj">${it.originOJ}</span>
-            <span class="vje-title">${it.title || it.originProb}</span>
+            <span class="vje-oj">${oj}</span>
+            <span class="vje-title">${title}</span>
             <div class="vje-src">${src}</div></a>`;
         }).join('');
       }, 300);
