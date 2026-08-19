@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.5.1
+// @version      0.5.2
 // @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware)
 // @author       doing
 // @match        https://vjudge.net/*
@@ -719,6 +719,7 @@
       root = document.createElement('div');
       root.id = 'vje-root';
       (document.body || document.documentElement).appendChild(root);
+      document.querySelectorAll('#vje-root').forEach((r) => { if (r !== root) r.remove(); });
       buildSearchUI(root);
       buildActionButtons(root);
       buildFavManager(root);
@@ -728,7 +729,11 @@
   }
 
   const themeObs = new MutationObserver(() => { const root = $('#vje-root'); if (root) applyTheme(root); });
-  const watchdog = new MutationObserver(() => { if (!document.getElementById('vje-root')) mountRoot(); });
+  let _wdt = null;
+  const watchdog = new MutationObserver(() => {
+    clearTimeout(_wdt);
+    _wdt = setTimeout(() => { if (!document.getElementById('vje-root')) mountRoot(); }, 120);
+  });
 
   // global (once) click delegate for favorites delete
   function closeWindows(except) {
