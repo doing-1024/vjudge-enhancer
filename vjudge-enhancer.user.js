@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.5.4
-// @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware, dedup fixes)
+// @version      0.6.0
+// @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware, Shadow DOM isolated)
 // @author       doing
 // @match        https://vjudge.net/*
 // @match        https://www.vjudge.net/*
@@ -110,9 +110,23 @@
     return out;
   }
 
-  function buildSearchUI(root) {
-    GM_addStyle(`
-      #vje-root {
+  // Shadow-DOM-scoped CSS (injected into #vje-root's shadowRoot; vjudge global CSS does not penetrate)
+  const VJE_CSS = `
+      /* ----- FontAwesome glyphs (shadow-scoped; vjudge global .fa rules do not penetrate) ----- */
+      i.fa { display: inline-block; font: normal normal normal 14px/1 FontAwesome; font-size: inherit;
+             text-rendering: auto; -webkit-font-smoothing: antialiased; }
+      i.fa::before { display: inline-block; }
+      i.fa.fa-search::before { content: "\\f002"; }
+      i.fa.fa-cog::before { content: "\\f013"; }
+      i.fa.fa-times::before { content: "\\f00d"; }
+      i.fa.fa-chevron-down::before { content: "\\f078"; }
+      i.fa.fa-chevron-up::before { content: "\\f077"; }
+      i.fa.fa-folder-open::before { content: "\\f07c"; }
+      i.fa.fa-upload::before { content: "\\f093"; }
+      i.fa.fa-external-link::before { content: "\\f08e"; }
+      i.fa.fa-star::before { content: "\\f005"; }
+      i.fa.fa-star-o::before { content: "\\f006"; }
+      :host {
         --vje-primary: #0d6efd;
         --vje-primary-hover: #0b5ed7;
         --vje-dark: #373a3c;
@@ -128,8 +142,8 @@
         --vje-danger: #dc3545;
         --vje-z: 2147483600;
       }
-      #vje-root, #vje-root * { box-sizing: border-box; }
-      #vje-root i.fa, #vje-root i.fa::before { font-family: 'FontAwesome' !important; }
+      :host, :host * { box-sizing: border-box; }
+      :host i.fa, :host i.fa::before { font-family: 'FontAwesome' !important; }
 
       /* ----- Right-side rail ----- */
       #vje-rail { position: fixed; right: 20px; bottom: 20px; z-index: var(--vje-z);
@@ -236,33 +250,34 @@
       @keyframes vje-drop { from{transform:translateY(-100%);opacity:0} to{transform:none;opacity:1} }
 
       /* ----- Dark mode ----- */
-      #vje-root.vje-dark {
+      :host(.vje-dark) {
         --vje-bg: #212529; --vje-surface: #2b3035; --vje-text: #e9ecef; --vje-muted: #adb5bd;
         --vje-border: #495057; --vje-chip-bg: #14304d; --vje-chip-text: #8ec5ff; --vje-dark: #212529;
       }
-      #vje-root.vje-dark #vje-panel, #vje-root.vje-dark #vje-fav, #vje-root.vje-dark #vje-settings {
+      :host(.vje-dark) #vje-panel, :host(.vje-dark) #vje-fav, :host(.vje-dark) #vje-settings {
         background: #212529; color: #e9ecef; box-shadow: 0 10px 34px rgba(0,0,0,.55); border-color: #495057; }
-      #vje-root.vje-dark #vje-panel input#vje-q, #vje-root.vje-dark #vje-settings select {
+      :host(.vje-dark) #vje-panel input#vje-q, :host(.vje-dark) #vje-settings select {
         background: #2b3035; color: #e9ecef; border-color: #495057; }
-      #vje-root.vje-dark #vje-panel .vje-seg button, #vje-root.vje-dark #vje-fav .vje-fav-tabs button {
+      :host(.vje-dark) #vje-panel .vje-seg button, :host(.vje-dark) #vje-fav .vje-fav-tabs button {
         background: #2b3035; color: #e9ecef; border-color: #495057; }
-      #vje-root.vje-dark #vje-panel .vje-seg button.active, #vje-root.vje-dark #vje-fav .vje-fav-tabs button.active { background: var(--vje-primary); color: #fff; }
-      #vje-root.vje-dark #vje-panel .vje-item { color: #e9ecef; border-bottom-color: #343a40; }
-      #vje-root.vje-dark #vje-panel .vje-item:hover { background: #2a3550; }
-      #vje-root.vje-dark #vje-panel .vje-oj { background: var(--vje-chip-bg); color: var(--vje-chip-text); }
-      #vje-root.vje-dark #vje-panel .vje-src { color: #adb5bd; }
-      #vje-root.vje-dark #vje-panel .vje-empty { color: #888; }
-      #vje-root.vje-dark #vje-rail .vje-act { background: #3a7bd5; }
-      #vje-root.vje-dark #vje-rail .vje-act:hover { background: #2f6bc0; }
-      #vje-root.vje-dark #vje-rail .vje-act.vje-fav-on { background: var(--vje-fav); color: var(--vje-fav-text); }
-      #vje-root.vje-dark #vje-sticky { background: rgba(33,37,41,.96); color: #e9ecef; border-bottom-color: #495057; }
-      #vje-root.vje-dark #vje-sticky .vje-sticky-prop { background: #343a40; color: #ced4da; }
-      #vje-root.vje-dark #vje-fav .vje-fav-item { border-bottom-color: #343a40; }
-      #vje-root.vje-dark #vje-fav .vje-fav-item a { color: var(--vje-chip-text); }
-      #vje-root.vje-dark #vje-fav .vje-empty { color: #888; }
-      #vje-root.vje-dark #vje-settings .vje-hint { color: #adb5bd; }
-      #vje-root.vje-dark #vje-settings .vje-favmgr { background: #14304d; color: #8ec5ff; border-color: #2b6cb0; }
-    `);
+      :host(.vje-dark) #vje-panel .vje-seg button.active, :host(.vje-dark) #vje-fav .vje-fav-tabs button.active { background: var(--vje-primary); color: #fff; }
+      :host(.vje-dark) #vje-panel .vje-item { color: #e9ecef; border-bottom-color: #343a40; }
+      :host(.vje-dark) #vje-panel .vje-item:hover { background: #2a3550; }
+      :host(.vje-dark) #vje-panel .vje-oj { background: var(--vje-chip-bg); color: var(--vje-chip-text); }
+      :host(.vje-dark) #vje-panel .vje-src { color: #adb5bd; }
+      :host(.vje-dark) #vje-panel .vje-empty { color: #888; }
+      :host(.vje-dark) #vje-rail .vje-act { background: #3a7bd5; }
+      :host(.vje-dark) #vje-rail .vje-act:hover { background: #2f6bc0; }
+      :host(.vje-dark) #vje-rail .vje-act.vje-fav-on { background: var(--vje-fav); color: var(--vje-fav-text); }
+      :host(.vje-dark) #vje-sticky { background: rgba(33,37,41,.96); color: #e9ecef; border-bottom-color: #495057; }
+      :host(.vje-dark) #vje-sticky .vje-sticky-prop { background: #343a40; color: #ced4da; }
+      :host(.vje-dark) #vje-fav .vje-fav-item { border-bottom-color: #343a40; }
+      :host(.vje-dark) #vje-fav .vje-fav-item a { color: var(--vje-chip-text); }
+      :host(.vje-dark) #vje-fav .vje-empty { color: #888; }
+      :host(.vje-dark) #vje-settings .vje-hint { color: #adb5bd; }
+      :host(.vje-dark) #vje-settings .vje-favmgr { background: #14304d; color: #8ec5ff; border-color: #2b6cb0; }  `;
+
+  function buildSearchUI(root) {
 
     // ---- Right-side rail (unified, aligned round buttons) ----
     const rail = document.createElement('div');
@@ -455,8 +470,8 @@
   }
 
   function buildActionButtons(root) {
-    if ($('#vje-submit-btn') || $('#vje-origin-btn') || $('#vje-fav-btn')) return;
-    const rail = $('#vje-rail'); if (!rail) return;
+    if (root.querySelector('#vje-submit-btn') || root.querySelector('#vje-origin-btn') || root.querySelector('#vje-fav-btn')) return;
+    const rail = root.querySelector('#vje-rail'); if (!rail) return;
 
     const oj = (location.pathname.match(/^\/problem\/([^-]+)-/) || [])[1];
     const prob = (location.pathname.match(/^\/problem\/[^-]+-(.+)$/) || [])[1];
@@ -496,7 +511,7 @@
   }
 
   function buildFavManager(root) {
-    if ($('#vje-fav')) return;
+    if (root.querySelector('#vje-fav')) return;
     const box = document.createElement('div');
     box.id = 'vje-fav';
     box.innerHTML = `
@@ -519,12 +534,12 @@
     });
   }
   function openFavManager() {
-    const box = $('#vje-fav'); if (!box) return;
+    const box = SHADOW ? SHADOW.querySelector('#vje-fav') : null; if (!box) return;
     closeWindows('vje-fav');
     box.classList.add('vje-open'); renderFav('problem');
   }
   function renderFav(cat) {
-    const list = $('#vje-fav-list'); if (!list) return;
+    const list = SHADOW ? SHADOW.querySelector('#vje-fav-list') : null; if (!list) return;
     const arr = getFavs()[cat] || [];
     if (!arr.length) { list.innerHTML = '<div class="vje-empty">暂无收藏</div>'; return; }
     list.innerHTML = arr.map((it, i) =>
@@ -537,7 +552,7 @@
    *  Feature 5 — Sticky header (title + time/memory limits)
    * ===================================================================== */
   function updateStickyContent() {
-    const bar = $('#vje-sticky'); if (!bar) return;
+    const bar = SHADOW ? SHADOW.querySelector('#vje-sticky') : null; if (!bar) return;
     const h2 = $('#prob-title h2');
     const title = h2 ? h2.textContent.replace(/[\uF000-\uF0FF]/g, '').trim() : '题目';
     const dts = $$('#prob-properties dt');
@@ -551,7 +566,7 @@
       props.map((p) => `<span class="vje-sticky-prop">${escapeHtml(p)}</span>`).join('');
   }
   function buildStickyBar(root) {
-    if ($('#vje-sticky')) { updateStickyContent(); return; }
+    if (root.querySelector('#vje-sticky')) { updateStickyContent(); return; }
     const bar = document.createElement('div');
     bar.id = 'vje-sticky';
     root.appendChild(bar);
@@ -662,8 +677,9 @@
    *  Toast
    * ===================================================================== */
   function toast(msg) {
-    let t = $('#vje-toast');
-    if (!t) { t = document.createElement('div'); t.id = 'vje-toast'; (document.body || document.documentElement).appendChild(t); }
+    if (!SHADOW) return;
+    let t = SHADOW.querySelector('#vje-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'vje-toast'; SHADOW.appendChild(t); }
     t.textContent = msg;
     requestAnimationFrame(() => t.classList.add('vje-show'));
     clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('vje-show'), 1800);
@@ -673,7 +689,8 @@
    *  Settings panel
    * ===================================================================== */
   function openSettings() {
-    const existing = $('#vje-settings');
+    if (!SHADOW) return;
+    const existing = SHADOW.querySelector('#vje-settings');
     if (existing) {
       const wasOpen = existing.classList.contains('vje-open');
       if (!wasOpen) closeWindows('vje-settings');
@@ -699,7 +716,7 @@
         <label style="margin:0;font-weight:600;">宽屏模式 (Wide Screen)</label>
       </div>
       <div class="vje-hint">启用后打开题目自动收起侧栏</div>`;
-    (document.getElementById('vje-root') || document.body).appendChild(box);
+    SHADOW.appendChild(box);
     closeWindows('vje-settings');
     box.classList.add('vje-open');
     const langSel = $('#vje-opt-lang', box);
@@ -713,58 +730,65 @@
   /* =======================================================================
    *  Bootstrap
    * ===================================================================== */
-  function applyTheme(root) { root.classList.toggle('vje-dark', isDark()); }
+  function applyTheme(host) { if (host) host.classList.toggle('vje-dark', isDark()); }
 
+  let SHADOW = null; // shadowRoot of #vje-root (UI lives inside; vjudge Angular cannot reach it)
   function mountRoot() {
-    let root = $('#vje-root');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'vje-root';
-      root.vjeManaged = true;
-      (document.body || document.documentElement).appendChild(root);
-      buildSearchUI(root);
-      buildActionButtons(root);
-      buildFavManager(root);
-      applyTheme(root);
+    let host = $('#vje-root');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'vje-root';
+      host.vjeManaged = true;
+      (document.body || document.documentElement).appendChild(host);
+      SHADOW = host.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = VJE_CSS;
+      SHADOW.appendChild(style);
+      buildSearchUI(SHADOW);
+      buildActionButtons(SHADOW);
+      buildFavManager(SHADOW);
+      applyTheme(host);
     }
     vjeDedupe();
-    return root;
+    return host;
   }
 
   function straySweeper() {
-    const root = $('#vje-root'); if (!root) return;
+    // UI lives in shadow; only the host remains in light DOM. Remove stray vje-* light-DOM nodes
+    // (a cloned host is an empty div — its shadowRoot is never cloned).
+    const host = $('#vje-root');
     document.querySelectorAll('[id^="vje-"], [class*="vje-"]').forEach((el) => {
-      if (el !== root && !root.contains(el)) el.remove();
+      if (el !== host) el.remove();
     });
   }
 
   function vjeDedupe() {
-    const roots = document.querySelectorAll('#vje-root');
-    if (roots.length <= 1) return;
-    let primary = null;
-    roots.forEach((r) => {
-      const score = r.querySelectorAll('[id^="vje-"], .vje-act, .vje-open').length;
-      if (!primary || score > primary._vjeScore) { primary = r; primary._vjeScore = score; }
-    });
-    if (!primary) primary = roots[0];
-    roots.forEach((r) => { if (r !== primary) r.remove(); });
+    const hosts = document.querySelectorAll('#vje-root');
+    if (hosts.length <= 1) return;
+    // prefer the one with a shadowRoot
+    let primary = Array.from(hosts).find((h) => !!h.shadowRoot) || hosts[0];
+    Array.from(hosts).forEach((h) => { if (h !== primary) h.remove(); });
+    const body = document.body || document.documentElement;
+    if (primary.parentNode !== body && body.contains(primary)) body.appendChild(primary);
   }
 
-  const themeObs = new MutationObserver(() => { const root = $('#vje-root'); if (root) applyTheme(root); });
+  const themeObs = new MutationObserver(() => { applyTheme($('#vje-root')); });
   let _wdt = null;
   const watchdog = new MutationObserver(() => {
     clearTimeout(_wdt);
     _wdt = setTimeout(() => {
-      if (!document.getElementById('vje-root')) mountRoot();
-      else vjeDedupe();
+      const h = document.getElementById('vje-root');
+      if (!h) mountRoot();
+      else { vjeDedupe(); }
     }, 120);
   });
 
   // global (once) click delegate for favorites delete
   function closeWindows(except) {
+    if (!SHADOW) return;
     ['vje-panel', 'vje-settings', 'vje-fav'].forEach((id) => {
       if (id === except) return;
-      const el = document.getElementById(id);
+      const el = SHADOW.querySelector('#' + id);
       if (el) el.classList.remove('vje-open');
     });
   }
@@ -788,19 +812,19 @@
 
   function init() {
     onReady(SPA_READY, () => {
-      const root = mountRoot();
-      applyTheme(root);
+      const host = mountRoot();
+      applyTheme(host);
       watchdog.observe(document.body || document.documentElement, { childList: true, subtree: false });
       themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
       setInterval(() => { vjeDedupe(); straySweeper(); }, 1500);
 
       if (isProblemPage()) {
-        buildStickyBar(root);
+        buildStickyBar(SHADOW);
         setupLangMemory();
         onReady(() => $('#prob-descs'), () => {
-          applyLanguage(); applyWideScreen(); buildStickyBar(root); updateFavBtn();
+          applyLanguage(); applyWideScreen(); buildStickyBar(SHADOW); updateFavBtn();
           const pd = $('#prob-descs');
-          if (pd) new MutationObserver(() => { applyLanguage(); applyWideScreen(); updateFavBtn(); buildStickyBar(root); }).observe(pd, { childList: true, subtree: false });
+          if (pd) new MutationObserver(() => { applyLanguage(); applyWideScreen(); updateFavBtn(); buildStickyBar(SHADOW); }).observe(pd, { childList: true, subtree: false });
         }, { timeout: 20000 });
         setTimeout(() => { applyLanguage(); applyWideScreen(); }, 3000);
       }
