@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.6.0
+// @version      0.6.1
 // @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware, Shadow DOM isolated)
 // @author       doing
 // @match        https://vjudge.net/*
@@ -46,6 +46,12 @@
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
   }
+
+  // vjudge renders the problem statement inside #frame-description iframe loading
+  // /problem/description/{did} — that page also matches @match https://vjudge.net/*,
+  // so the script would run a second copy inside the iframe and duplicate the rail UI.
+  // Skip all UI when not in the top window.
+  const isTopWindow = () => { try { return window.self === window.top; } catch (e) { return true; } };
 
   const isProblemPage = () => /^\/problem\//.test(location.pathname);
 
@@ -811,6 +817,10 @@
   });
 
   function init() {
+    if (!isTopWindow()) {
+      console.log('[VJudgeEnhancer] skipped: running inside iframe (statement frame), UI disabled');
+      return;
+    }
     onReady(SPA_READY, () => {
       const host = mountRoot();
       applyTheme(host);
