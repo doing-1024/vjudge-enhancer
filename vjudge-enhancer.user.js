@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VJudge Enhancer
 // @namespace    https://github.com/doing-1024/vjudge-enhancer
-// @version      0.6.1
+// @version      0.7.0
 // @description  Search Anywhere / Language Switch / Wide Screen / Action rail / Sticky header / Custom Favorites / Submit-language memory (FA icons, dark-mode aware, Shadow DOM isolated)
 // @author       doing
 // @match        https://vjudge.net/*
@@ -25,7 +25,7 @@
   const DEFAULTS = {
     prefLang: 'none',   // none | en | zh | ja | ko | ru  (statement version language)
     wideScreen: false,  // collapse the problem side-panel on problem pages
-    searchField: 'all', // all | title | probNum | fav
+    searchField: 'all', // all | title | probNum | user | workbook | contest | fav
     searchOJ: 'All',
   };
 
@@ -70,8 +70,15 @@
    *  Feature 1 — Search Anywhere (floating button + panel)
    * ===================================================================== */
   const SEARCH_API = '/problem/data';
+  const USER_API = '/user/data';
+  const WORKBOOK_API = '/workbook/data';
+  const CONTEST_API = '/contest/data';
   let drawCounter = Math.floor(Math.random() * 100);
 
+  // Unified item shape for rendering:
+  // { tag, title, url, src }  (tag = OJ / 用户 / 题单 / 比赛 badge text)
+  // Unified item shape for rendering:
+  // { tag, title, url, src }  (tag = OJ / 用户 / 题单 / 比赛 badge text)
   async function vjudgeSearch(query, field) {
     if (field === 'fav') {
       const q = query.toLowerCase();
@@ -80,14 +87,18 @@
       return list.map((it) => {
         const m = (it.key || '').match(/^([^-]+)-(.+)$/);
         return {
-          originOJ: m ? m[1] : '',
-          originProb: m ? m[2] : '',
+          tag: m ? m[1] : '题目',
           title: it.title || it.key,
-          source: '',
-          _favUrl: it.url,
+          url: it.url || `/problem/${it.key}`,
+          src: '',
         };
       });
     }
+    if (field === 'user') return searchUser(query);
+    if (field === 'workbook') return searchWorkbook(query);
+    if (field === 'contest') return searchContest(query);
+
+    // ---- problems (title / probNum / all) ----
     const fields = field === 'all' ? ['title', 'probNum'] : [field];
     const seen = new Set();
     const out = [];
@@ -109,11 +120,92 @@
         (json.data || []).forEach((it) => {
           const key = `${it.originOJ}-${it.originProb}`;
           if (seen.has(key)) return;
-          seen.add(key); out.push(it);
+          seen.add(key);
+          out.push({
+            tag: it.originOJ,
+            title: it.title || it.originProb,
+            url: `/problem/${key}`,
+            src: (it.source || '').replace(/<[^>]+>/g, ''),
+          });
         });
       } catch (e) { console.warn('[VJudgeEnhancer] search failed:', e); }
     }
     return out;
+  }
+
+  // ---- users ----
+  async function searchUser(q) {
+    const params = new URLSearchParams({
+      draw: ++drawCounter, start: 0, length: 10,
+      sortDir: 'desc', sortCol: 7,
+      username: q, nickname: '', school: '',
+      category: 'all', groupId: '', _: Date.now(),
+    });
+    try {
+      const resp = await fetch(`${USER_API}?${params.toString()}`, {
+        method: 'GET', credentials: 'include',
+        headers: { 'x-requested-with': 'XMLHttpRequest', 'accept': '*/*' },
+      });
+      const json = await resp.json();
+      return (json.data || []).map((it) => ({
+        tag: '用户',
+        title: it[1],                      // username
+        url: `/user/${it[1]}`,
+        src: [it[2], it[3]].filter(Boolean).join(' · '),   // nickname · school
+        sub: `解决 ${it[7]} / 尝试 ${it[8]}`,
+      }));
+    } catch (e) { console.warn('[VJudgeEnhancer] user search failed:', e); return []; }
+  }
+
+  // ---- workbooks (题单) ----
+  async function searchWorkbook(q) {
+    const params = new URLSearchParams({
+      draw: ++drawCounter, start: 0, length: 10,
+      sortDir: 'desc', sortCol: 2,
+      title: q, category: 'all', author: '', _: Date.now(),
+    });
+    try {
+      const resp = await fetch(`${WORKBOOK_API}?${params.toString()}`, {
+        method: 'GET', credentials: 'include',
+        headers: { 'x-requested-with': 'XMLHttpRequest', 'accept': '*/*' },
+      });
+      const json = await resp.json();
+      return (json.data || []).map((it) => ({
+        tag: '题单',
+        title: it.title,
+        url: `/article/${it.id}`,
+        src: `作者 ${it.author}`,
+        sub: `${it.problemCount} 题 · ${it.joinedUsers} 加入 · ${it.viewCnt} 浏览`,
+      }));
+    } catch (e) { console.warn('[VJudgeEnhancer] workbook search failed:', e); return []; }
+  }
+
+  // ---- contests (比赛) ----
+  async function searchContest(q) {
+    const params = new URLSearchParams({
+      draw: ++drawCounter, start: 0, length: 10,
+      sortDir: 'desc', sortCol: 0,
+      category: 'all', running: 0, title: q, owner: '', _: Date.now(),
+    });
+    try {
+      const resp = await fetch(`${CONTEST_API}?${params.toString()}`, {
+        method: 'GET', credentials: 'include',
+        headers: { 'x-requested-with': 'XMLHttpRequest', 'accept': '*/*' },
+      });
+      const json = await resp.json();
+      return (json.data || []).map((it) => {
+        const start = new Date(it[3]);
+        const end = new Date(it[4]);
+        const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        return {
+          tag: '比赛',
+          title: it[1],
+          url: `/contest/${it[0]}`,
+          src: `主办 ${it[7]}`,
+          sub: `${fmt(start)} ~ ${fmt(end)} · 已结束`,
+        };
+      });
+    } catch (e) { console.warn('[VJudgeEnhancer] contest search failed:', e); return []; }
   }
 
   // Shadow-DOM-scoped CSS (injected into #vje-root's shadowRoot; vjudge global CSS does not penetrate)
@@ -194,6 +286,7 @@
       #vje-panel .vje-oj { display: inline-block; font-size: 11px; font-weight: 700; color: var(--vje-chip-text); background: var(--vje-chip-bg); border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
       #vje-panel .vje-title { font-weight: 600; }
       #vje-panel .vje-src { color: var(--vje-muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #vje-panel .vje-sub { color: var(--vje-muted); font-size: 11px; margin-top: 1px; }
       #vje-panel .vje-empty { padding: 16px; color: #999; text-align: center; }
 
       /* ----- Sticky header ----- */
@@ -323,7 +416,10 @@
         <button data-f="all" class="${CFG.searchField === 'all' ? 'active' : ''}">全部</button>
         <button data-f="title" class="${CFG.searchField === 'title' ? 'active' : ''}">题目</button>
         <button data-f="probNum" class="${CFG.searchField === 'probNum' ? 'active' : ''}">题号</button>
-        <button data-f="fav" class="${CFG.searchField === 'fav' ? 'active' : ''}">收藏夹内</button>
+        <button data-f="user" class="${CFG.searchField === 'user' ? 'active' : ''}">用户</button>
+        <button data-f="workbook" class="${CFG.searchField === 'workbook' ? 'active' : ''}">题单</button>
+        <button data-f="contest" class="${CFG.searchField === 'contest' ? 'active' : ''}">比赛</button>
+        <button data-f="fav" class="${CFG.searchField === 'fav' ? 'active' : ''}">收藏夹</button>
       </div>
       <div class="vje-results" id="vje-results"></div>`;
     root.appendChild(panel);
@@ -355,14 +451,15 @@
         const items = await vjudgeSearch(q, CFG.searchField);
         if (!items.length) { results.innerHTML = '<div class="vje-empty">无结果</div>'; return; }
         results.innerHTML = items.map((it) => {
-          const url = it._favUrl || `/problem/${it.originOJ}-${it.originProb}`;
-          const src = (it.source || '').replace(/<[^>]+>/g, '');
-          const oj = it._favUrl ? it.originOJ : it.originOJ;
+          const url = it.url || `/problem/${it.originOJ}-${it.originProb}`;
+          const src = (it.src || it.source || '').replace(/<[^>]+>/g, '');
+          const tag = it.tag || it.originOJ || '题目';
           const title = it.title || it.originProb || '';
+          const sub = it.sub ? `<div class="vje-sub">${escapeHtml(it.sub)}</div>` : '';
           return `<a class="vje-item" href="${url}">
-            <span class="vje-oj">${oj}</span>
-            <span class="vje-title">${title}</span>
-            <div class="vje-src">${src}</div></a>`;
+            <span class="vje-oj">${escapeHtml(tag)}</span>
+            <span class="vje-title">${escapeHtml(title)}</span>
+            <div class="vje-src">${escapeHtml(src)}</div>${sub}</a>`;
         }).join('');
       }, 300);
     });
@@ -799,17 +896,22 @@
     });
   }
 
-  // click outside any window closes it
+  // click outside any window closes it.
+  // NOTE: with Shadow DOM the click event's e.target is retargeted to the host
+  // (#vje-root) when it bubbles out of the shadow root, so closest() on e.target
+  // can never find shadow-internal #vje-panel / #vje-search etc. Use composedPath()
+  // which preserves the real path inside the shadow tree.
+  const pathHasId = (path, ids) => path.some((el) => el && el.id && ids.indexOf(el.id) !== -1);
   document.addEventListener('click', (e) => {
-    const t = e.target;
-    if (!t || !t.closest) return;
-    const inWin = t.closest('#vje-panel, #vje-settings, #vje-fav');
-    const inTrigger = t.closest('#vje-search, #vje-settings-btn, #vje-favlist-btn');
+    const path = e.composedPath ? e.composedPath() : (e.target ? [e.target] : []);
+    const inWin = pathHasId(path, ['vje-panel', 'vje-settings', 'vje-fav']);
+    const inTrigger = pathHasId(path, ['vje-search', 'vje-settings-btn', 'vje-favlist-btn']);
     if (!inWin && !inTrigger) closeWindows();
   });
 
   document.addEventListener('click', (e) => {
-    const d = e.target.closest('.vje-fav-del');
+    const path = e.composedPath ? e.composedPath() : (e.target ? [e.target] : []);
+    const d = path.find((el) => el && el.classList && el.classList.contains('vje-fav-del'));
     if (d) {
       const f = getFavs(); f[d.dataset.c].splice(+d.dataset.i, 1); setFavs(f);
       renderFav(d.dataset.c); updateFavBtn();
